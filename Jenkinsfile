@@ -7,18 +7,16 @@ pipeline {
     }
 
     environment {
-        APP_NAME = "register-app-pipeline"
-        RELEASE = "1.0.0"
-        IMAGE_NAME = "eddiebyte/${APP_NAME}"
-        IMAGE_TAG = "${RELEASE}-${BUILD_NUMBER}"
+        APP_NAME    = "register-app-pipeline"
+        RELEASE     = "1.0.0"
+        IMAGE_NAME  = "eddiebyte/${APP_NAME}"
+        IMAGE_TAG   = "${RELEASE}-${BUILD_NUMBER}"
+        TRIVY_IMAGE = "aquasec/trivy:0.69.3" 
     }
 
     stages {
-
         stage("Cleanup Workspace") {
-            steps {
-                cleanWs()
-            }
+            steps { cleanWs() }
         }
 
         stage("Checkout from SCM") {
@@ -29,14 +27,9 @@ pipeline {
             }
         }
 
-        stage("Build Application") {
+        stage("Build & Test") {
             steps {
                 sh "mvn clean package"
-            }
-        }
-
-        stage("Test Application") {
-            steps {
                 sh "mvn test"
             }
         }
@@ -47,13 +40,6 @@ pipeline {
                     withSonarQubeEnv('sonarqube-server') {
                         sh "mvn sonar:sonar"
                     }
-                }
-            }
-        }
-
-        stage("Quality Gate") {
-            steps {
-                script {
                     timeout(time: 2, unit: 'MINUTES') {
                         waitForQualityGate abortPipeline: true
                     }
@@ -72,14 +58,12 @@ pipeline {
                 script {
                     sh """
                         docker run --rm \
-                        -v /var/run/docker.sock:/var/run/docker.sock \
-                        aquasec/trivy:0.48.0 image \
-                        ${IMAGE_NAME}:${IMAGE_TAG} \
-                        --no-progress \
-                        --scanners vuln \
-                        --exit-code 0 \
-                        --severity HIGH,CRITICAL \
-                        --format table
+                            -e DOCKER_API_VERSION=1.43 \
+                            -v /var/run/docker.sock:/var/run/docker.sock \
+                            ${TRIVY_IMAGE} image \
+                            --severity HIGH,CRITICAL \
+                            --exit-code 0 \
+                            ${IMAGE_NAME}:${IMAGE_TAG}
                     """
                 }
             }
@@ -93,15 +77,25 @@ pipeline {
                         usernameVariable: 'DOCKER_USER',
                         passwordVariable: 'DOCKER_PASS'
                     )]) {
-
                         sh """
-                            echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin
+                            echo \$DOCKER_PASS | docker login -u \$DOCKER_USER --password-stdin
                             docker push ${IMAGE_NAME}:${IMAGE_TAG}
+                            docker tag ${IMAGE_NAME}:${IMAGE_TAG} ${IMAGE_NAME}:latest
+                            docker push ${IMAGE_NAME}:latest
                         """
                     }
                 }
             }
         }
 
+        stage('Cleanup Artifacts') {
+            steps {
+                script {
+                    // Added "|| true" to prevent the build from failing if the images were already removed
+                    sh "docker rmi ${IMAGE_NAME}:${IMAGE_TAG} || true"
+                    sh "docker rmi ${IMAGE_NAME}:latest || true"
+                }
+            }
+        }
     }
 }
