@@ -73,7 +73,7 @@ pipeline {
                     sh """
                         docker run --rm \
                         -v /var/run/docker.sock:/var/run/docker.sock \
-                        aquasec/trivy:latest image \
+                        aquasec/trivy:0.48.0 image \
                         ${IMAGE_NAME}:${IMAGE_TAG} \
                         --no-progress \
                         --scanners vuln \
