@@ -1,9 +1,11 @@
 pipeline {
     agent { label 'Jenkins-Agent' }
+
     tools {
         jdk 'Java21'
         maven 'Maven3'
     }
+
     stages {
 
         stage("Cleanup Workspace") {
@@ -29,6 +31,16 @@ pipeline {
         stage("Test Application") {
             steps {
                 sh "mvn test"
+            }
+        }
+
+        stage("SonarQube Analysis") {
+            steps {
+                script {
+                    withSonarQubeEnv('SonarQubeServer') {
+                        sh "mvn sonar:sonar"
+                    }
+                }
             }
         }
 
