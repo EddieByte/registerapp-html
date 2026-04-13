@@ -6,6 +6,13 @@ pipeline {
         maven 'Maven3'
     }
 
+    environment {
+        APP_NAME = "register-app-pipeline"
+        RELEASE = "1.0.0"
+        IMAGE_NAME = "eddiebyte/${APP_NAME}"
+        IMAGE_TAG = "${RELEASE}-${BUILD_NUMBER}"
+    }
+
     stages {
 
         stage("Cleanup Workspace") {
@@ -49,6 +56,30 @@ pipeline {
                 script {
                     timeout(time: 2, unit: 'MINUTES') {
                         waitForQualityGate abortPipeline: true
+                    }
+                }
+            }
+        }
+
+        stage("Docker Build") {
+            steps {
+                sh "docker build -t ${IMAGE_NAME}:${IMAGE_TAG} ."
+            }
+        }
+
+        stage("Docker Login & Push") {
+            steps {
+                script {
+                    withCredentials([usernamePassword(
+                        credentialsId: 'dockerhub',
+                        usernameVariable: 'DOCKER_USER',
+                        passwordVariable: 'DOCKER_PASS'
+                    )]) {
+
+                        sh """
+                            echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin
+                            docker push ${IMAGE_NAME}:${IMAGE_TAG}
+                        """
                     }
                 }
             }
