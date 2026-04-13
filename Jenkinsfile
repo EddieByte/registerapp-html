@@ -11,6 +11,7 @@ pipeline {
         RELEASE     = "1.0.0"
         IMAGE_NAME  = "eddiebyte/${APP_NAME}"
         IMAGE_TAG   = "${RELEASE}-${BUILD_NUMBER}"
+        // Keeping 0.69.3 for security (verified safe version)
         TRIVY_IMAGE = "aquasec/trivy:0.69.3" 
     }
 
@@ -58,7 +59,7 @@ pipeline {
                 script {
                     sh """
                         docker run --rm \
-                            -e DOCKER_API_VERSION=1.43 \
+                            -e DOCKER_API_VERSION=1.44 \
                             -v /var/run/docker.sock:/var/run/docker.sock \
                             ${TRIVY_IMAGE} image \
                             --severity HIGH,CRITICAL \
@@ -91,7 +92,7 @@ pipeline {
         stage('Cleanup Artifacts') {
             steps {
                 script {
-                    // Added "|| true" to prevent the build from failing if the images were already removed
+                    // Using "|| true" ensures the pipeline doesn't fail if the image was already cleaned
                     sh "docker rmi ${IMAGE_NAME}:${IMAGE_TAG} || true"
                     sh "docker rmi ${IMAGE_NAME}:latest || true"
                 }
